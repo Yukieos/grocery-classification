@@ -1,6 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from model import infer_category
+from model_utils import infer_category
 from utils import normalize, compute_similarity
 import uvicorn
 
