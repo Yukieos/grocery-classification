@@ -9,4 +9,4 @@ numpy
 psycopg2-binary
 pandas
 python-multipart
-request
+requests
