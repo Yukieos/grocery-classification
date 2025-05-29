@@ -17,13 +17,20 @@ cls_model = models.mobilenet_v3_small(pretrained=False)
 cls_model.classifier[3] = torch.nn.Linear(
     cls_model.classifier[3].in_features, num_classes
 )
-cls_model.load_state_dict(
-    torch.load(
-        'app/best_classifer.pth', 
-        map_location=device
-    )
-)
-cls_model.to(device).eval()
+import os
+import requests
+
+MODEL_URL = "https://huggingface.co/yukieos/grocery_classification/blob/main/best_classifer.pth"
+MODEL_PATH = "best_classifier.pth"
+
+if not os.path.exists(MODEL_PATH):
+    print("🔽 Downloading model weights from Hugging Face...")
+    response = requests.get(MODEL_URL)
+    with open(MODEL_PATH, "wb") as f:
+        f.write(response.content)
+    print("✅ Download complete!")
+
+cls_model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
 
 val_tf = transforms.Compose([
     transforms.Resize((224,224)),
