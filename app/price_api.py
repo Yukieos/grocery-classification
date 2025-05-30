@@ -33,24 +33,40 @@ def search_price(q: str = Query(..., description="请输入商品名称")):
     )
     
     cur = conn.cursor()
-    cur.execute("SELECT full_name, vendor, unit_price, normalized_name FROM products;")
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    cur.execute(
+        "SELECT full_name, vendor, unit_price FROM products "
+        "WHERE normalized_name LIKE %s",
+        (f"%{norm_q}%",)
+    )
+    exact_rows = cur.fetchall()
 
     results = []
-    for full_name, vendor, price, norm_name in rows:
-        sim = compute_similarity(norm_q, norm_name)
-        results.append((sim, price, full_name, vendor))
+    if exact_rows:
+        for full_name, vendor, price in exact_rows:
+            results.append({
+                "product_name": full_name,
+                "vendor": vendor,
+                "price": price,
+                "similarity": 1.0
+            })
+    else:
+        # fetch everything (you could add a LIMIT if your table is huge)
+        cur.execute(
+            "SELECT full_name, vendor, unit_price, normalized_name FROM products"
+        )
+        all_rows = cur.fetchall()
+        for full_name, vendor, price, norm_name in all_rows:
+            sim = compute_similarity(norm_q, norm_name)
+            results.append({
+                "product_name": full_name,
+                "vendor": vendor,
+                "price": price,
+                "similarity": round(sim, 2)
+            })
+        # sort by descending similarity, then ascending price
+        results.sort(key=lambda x: (-x["similarity"], x["price"]))
+        results = results[:5]
 
-    results.sort(key=lambda x: (-x[0], x[1]))
-
-    return [
-        {
-            "product_name": r[2],
-            "vendor": r[3],
-            "price": r[1],
-            "similarity": round(r[0], 2)
-        }
-        for r in results[:5]
-    ] 
+    cur.close()
+    conn.close()
+    return results
