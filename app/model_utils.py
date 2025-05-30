@@ -1,79 +1,50 @@
-import cv2
-import torch
-import easyocr
-from PIL import Image
-from torchvision import transforms
-import numpy as np
-from torchvision import models
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+import psycopg2
+from utils import normalize, compute_similarity
 
-OCR_LANGS = ['en']
-ocr_reader = easyocr.Reader(OCR_LANGS, gpu=torch.cuda.is_available())
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-CATEGORIES = ['Apple', 'Asparagus', 'Aubergine', 'Avocado', 'Banana', 'Brown-Cap-Mushroom', 'Cabbage', 'Cantaloupe', 'Carrots', 'Cucumber', 'Egg', 'Galia-Melon', 'Garlic', 'Ginger', 'Honeydew-Melon', 'Juice', 'Kiwi', 'Leek', 'Lemon', 'Lime', 'Mango', 'Milk', 'Nectarine', 'Onion', 'Orange', 'Papaya', 'Passion-Fruit', 'Peach', 'Pear', 'Pepper', 'Pineapple', 'Plum', 'Pomegranate', 'Potato', 'Red-Beet', 'Red-Grapefruit', 'Satsumas', 'Tofu', 'Tomato', 'Watermelon', 'Yogurt', 'Zucchini']  
-
-num_classes = len(CATEGORIES)
-cls_model = models.mobilenet_v3_small(pretrained=False)
-cls_model.classifier[3] = torch.nn.Linear(
-    cls_model.classifier[3].in_features, num_classes
+app = FastAPI(
+    title="Grocery Price Search API",
+    description="Search for grocery prices by name."
 )
-import os
-import requests
 
-MODEL_URL = "https://huggingface.co/yukieos/grocery_classification/blob/main/best_classifer.pth"
-MODEL_PATH = "best_classifier.pth"
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["*"],
+)
 
-if not os.path.exists(MODEL_PATH):
-    print("🔽 Downloading model weights from Hugging Face...")
-    response = requests.get(MODEL_URL)
-    with open(MODEL_PATH, "wb") as f:
-        f.write(response.content)
-    print("✅ Download complete!")
+@app.get("/search_price")
+def search_price(q: str = Query(..., description="请输入商品名称")):
+    norm_q = normalize(q)
 
-cls_model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+    conn = psycopg2.connect(
+        host="db-foodprice.cs76a4esi9a9.us-east-1.rds.amazonaws.com",
+        dbname="postgres",
+        user="yukieos",
+        password="drinkmoretea1",
+        port=5432
+    )
+    cur = conn.cursor()
+    cur.execute("SELECT full_name, vendor, unit_price, normalized_name FROM products;")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
 
-val_tf = transforms.Compose([
-    transforms.Resize((224,224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485,0.456,0.406],
-                         std =[0.229,0.224,0.225])
-])
+    results = []
+    for full_name, vendor, price, norm_name in rows:
+        sim = compute_similarity(norm_q, norm_name)
+        results.append((sim, price, full_name, vendor))
 
-def infer_category(
-    img_bytes: bytes,
-    ocr_conf_thresh: float = 0.5,
-    cls_conf_thresh: float = 0.6
-):
-    """
-    输入：图片二进制
-    输出：{"category": str|None, "raw_text": str|None, "method": "ocr"/"classification"/"manual"}
-    """
-    arr = np.frombuffer(img_bytes, np.uint8)
-    img_bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    results.sort(key=lambda x: (-x[0], x[1]))
 
-    ocr_results = ocr_reader.readtext(img_rgb)
-    texts = [t for (_, t, p) in ocr_results if p >= ocr_conf_thresh]
-    raw = ' '.join(texts).lower().strip()
-    for cat in CATEGORIES:
-        if cat in raw:
-            return {"category": cat, "raw_text": raw, "method": "ocr"}
-
-    pil = Image.fromarray(img_rgb)
-    x = val_tf(pil).unsqueeze(0).to(device)
-    with torch.no_grad():
-        logits = cls_model(x)
-        probs = torch.softmax(logits, dim=1).squeeze()
-        conf, idx = torch.max(probs, dim=0)
-        if conf.item() >= cls_conf_thresh:
-            return {
-                "category": CATEGORIES[idx.item()],
-                "raw_text": None,
-                "method": "classification"
-            }
-
-    return {
-        "category": None,
-        "raw_text": raw if raw else None,
-        "method": "manual"
-    }
+    return [
+        {
+            "product_name": r[2],
+            "vendor": r[3],
+            "price": r[1],
+            "similarity": round(r[0], 2)
+        }
+        for r in results[:5]
+    ] 
