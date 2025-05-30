@@ -3,6 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 from utils import normalize, compute_similarity
 
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+DB_PORT = os.getenv("DB_PORT", 5432)
+
 app = FastAPI(
     title="Grocery Price Search API",
     description="Search for grocery prices by name."
@@ -20,12 +26,11 @@ def search_price(q: str = Query(..., description="请输入商品名称")):
     norm_q = normalize(q)
 
     conn = psycopg2.connect(
-        host="db-foodprice.cs76a4esi9a9.us-east-1.rds.amazonaws.com",
-        dbname="postgres",
-        user="yukieos",
-        password="drinkmoretea1",
-        port=5432
+        host=DB_HOST, dbname=DB_NAME,
+        user=DB_USER, password=DB_PASS,
+        port=DB_PORT
     )
+    
     cur = conn.cursor()
     cur.execute("SELECT full_name, vendor, unit_price, normalized_name FROM products;")
     rows = cur.fetchall()
