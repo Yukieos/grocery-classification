@@ -65,6 +65,13 @@ def search_price(q: str = Query(..., description="Please input the name of produ
     for full_name, vendor, price in all_rows:
         norm_name = normalize(full_name)  # e.g. "organic whole milk"
         sim_score = compute_similarity(norm_q, norm_name)
+        if sim_score > 0:
+            scored_list.append({
+                "product_name": full_name,
+                "vendor":       vendor,
+                "price":        price,
+                "score":        sim_score
+            })
     if not scored_list:
         return []
     scored_list.sort(key=lambda x: -x["score"])
