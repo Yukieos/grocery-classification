@@ -1,6 +1,6 @@
 import re
 import snowballstemmer
-
+stemmer = snowballstemmer.stemmer("english")
 def normalize(text: str) -> str:
     # lower-case, keep letters, digits, and spaces; remove everything else
     s = text.lower()
