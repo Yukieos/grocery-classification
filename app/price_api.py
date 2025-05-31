@@ -75,9 +75,9 @@ def search_price(q: str = Query(..., description="Please input the name of produ
     if not scored_list:
         return []
     scored_list.sort(key=lambda x: -x["score"])
-    top12_by_score = scored_list[:12]
+    top12_by_score = scored_list[:7]
     top12_by_score.sort(key=lambda x: x["price"])
-    top6_cheapest = top12_by_score[:6]
+    top6_cheapest = top12_by_score[:5]
     return [
         {
             "product_name": item["product_name"],
