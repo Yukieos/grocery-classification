@@ -13,7 +13,9 @@ It supports both **image-based** and **text-based search** using a trained **Mob
 
 ### Model Hosting
 → [Model for MobileNet + OCR Model on Hugging Face](https://huggingface.co/yukieos/grocery_classification)
+
 → [API for MobileNet + OCR Model on Hugging Face](https://huggingface.co/spaces/yukieos/groceryclassifier)
+
 → [API for text search on Render](https://grocery-classification.onrender.com)
 
 ### 📦 Features
